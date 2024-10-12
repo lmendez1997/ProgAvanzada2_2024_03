@@ -283,4 +283,12 @@ public class AppTest {
 		double resultado = calculadora.dividir(dividendo, divisor);
 		assertEquals(dividendo / divisor, resultado, 0.000001);
 	}
+	
+	@Test
+	public void probandoLaDivi_paso_27() {
+		double dividendo = -100;
+		double divisor = 2;
+		double resultado = calculadora.dividir(dividendo, divisor);
+		assertEquals(dividendo / divisor, resultado, 0.000001);
+	}
 }
