@@ -9,6 +9,7 @@ public class Alumno extends AbstractEntity {
     private String correo;
     private String telefono;
     private LocalDate fechaNacimiento;
+    private String fecha_nacimiento;
     private String carrera;
 
     public String getNombre() {
@@ -47,5 +48,11 @@ public class Alumno extends AbstractEntity {
     public void setCarrera(String carrera) {
         this.carrera = carrera;
     }
+	public String getFecha_nacimiento() {
+		return fecha_nacimiento;
+	}
+	public void setFecha_nacimiento(String fecha_nacimiento) {
+		this.fecha_nacimiento = fecha_nacimiento;
+	}
 
 }
