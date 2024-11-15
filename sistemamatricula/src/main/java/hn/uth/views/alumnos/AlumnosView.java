@@ -1,5 +1,6 @@
 package hn.uth.views.alumnos;
 
+import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -13,6 +14,7 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.Notification.Position;
 import com.vaadin.flow.component.notification.NotificationVariant;
+import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.textfield.TextField;
@@ -24,20 +26,29 @@ import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouteAlias;
-import com.vaadin.flow.spring.data.VaadinSpringDataHelpers;
+
+import hn.uth.controller.AlumnosInteractor;
+import hn.uth.controller.AlumnosInteractorImpl;
 import hn.uth.data.Alumno;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.time.LocalDate;
+import java.time.Month;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Optional;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import java.util.Collection;
 
 @PageTitle("Alumnos")
 @Route("/:alumnoID?/:action?(edit)")
 @Menu(order = 0, icon = "line-awesome/svg/user-alt-solid.svg")
 @RouteAlias("")
-public class AlumnosView extends Div implements BeforeEnterObserver {
+public class AlumnosView extends Div implements BeforeEnterObserver, AlumnosViewModel {
 
     private final String ALUMNO_ID = "alumnoID";
     private final String ALUMNO_EDIT_ROUTE_TEMPLATE = "/%s/edit";
@@ -54,14 +65,18 @@ public class AlumnosView extends Div implements BeforeEnterObserver {
     private final Button cancel = new Button("Cancelar", new Icon(VaadinIcon.CLOSE_SMALL));
     private final Button save = new Button("Guardar", new Icon(VaadinIcon.CHECK));
 
-    private final BeanValidationBinder<Alumno> binder;
+    //private final BeanValidationBinder<Alumno> binder;
 
     private Alumno alumno;
-
+    private List<Alumno> alumnos;
+    private AlumnosInteractor controlador;
 
 
     public AlumnosView() {
         addClassNames("alumnos-view");
+        
+        controlador = new AlumnosInteractorImpl(this);
+        alumnos = new ArrayList<>();
 
         // Create UI
         SplitLayout splitLayout = new SplitLayout();
@@ -76,7 +91,7 @@ public class AlumnosView extends Div implements BeforeEnterObserver {
         grid.addColumn("apellido").setAutoWidth(true);
         grid.addColumn("correo").setAutoWidth(true);
         grid.addColumn("telefono").setAutoWidth(true);
-        grid.addColumn("fechaNacimiento").setAutoWidth(true);
+        grid.addColumn("fecha_nacimiento").setAutoWidth(true).setHeader("Fecha de Nacimiento");
         grid.addColumn("carrera").setAutoWidth(true);
         
         grid.addThemeVariants(GridVariant.LUMO_NO_BORDER);
@@ -92,11 +107,11 @@ public class AlumnosView extends Div implements BeforeEnterObserver {
         });
 
         // Configure Form
-        binder = new BeanValidationBinder<>(Alumno.class);
+        //binder = new BeanValidationBinder<>(Alumno.class);
 
         // Bind fields. This is where you'd define e.g. validation rules
 
-        binder.bindInstanceFields(this);
+        //binder.bindInstanceFields(this);
 
         cancel.addClickListener(e -> {
             clearForm();
@@ -108,7 +123,7 @@ public class AlumnosView extends Div implements BeforeEnterObserver {
                 if (this.alumno == null) {
                     this.alumno = new Alumno();
                 }
-                binder.writeBean(this.alumno);
+                //binder.writeBean(this.alumno);
                 
                 clearForm();
                 refreshGrid();
@@ -119,29 +134,39 @@ public class AlumnosView extends Div implements BeforeEnterObserver {
                         "Error updating the data. Somebody else has updated the record while you were making changes.");
                 n.setPosition(Position.MIDDLE);
                 n.addThemeVariants(NotificationVariant.LUMO_ERROR);
-            } catch (ValidationException validationException) {
-                Notification.show("Failed to update the data. Check again that all values are valid");
             }
         });
+        
+        controlador.consultarAlumnos();
     }
 
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
         Optional<Long> alumnoId = event.getRouteParameters().get(ALUMNO_ID).map(Long::parseLong);
         if (alumnoId.isPresent()) {
-			/*
-			 * Optional<Alumno> alumnoFromBackend = alumnoService.get(alumnoId.get()); if
-			 * (alumnoFromBackend.isPresent()) { populateForm(alumnoFromBackend.get()); }
-			 * else {
-			 * Notification.show(String.format("The requested alumno was not found, ID = %s"
-			 * , alumnoId.get()), 3000, Notification.Position.BOTTOM_START); // when a row
-			 * is selected but the data is no longer available, // refresh grid
-			 * refreshGrid(); event.forwardTo(AlumnosView.class); }
-			 */
+        	Alumno alumnoSeleccionado = obtenerAlumno(alumnoId.get());
+        	if(alumnoSeleccionado == null) {
+        		mostrarMensajeError("El alumno con el id "+alumnoId.get()+" no existe");
+           		refreshGrid(); 
+        		event.forwardTo(AlumnosView.class);
+        	}else {
+        		populateForm(alumnoSeleccionado);
+        	}
         }
     }
 
-    private void createEditorLayout(SplitLayout splitLayout) {
+    private Alumno obtenerAlumno(Long id) {
+		Alumno encotrado = null;
+		for(Alumno al: alumnos) {
+			if(al.getId() == id) {
+				encotrado = al;
+				break;
+			}
+		}
+		return encotrado;
+	}
+
+	private void createEditorLayout(SplitLayout splitLayout) {
         Div editorLayoutDiv = new Div();
         editorLayoutDiv.setClassName("editor-layout");
 
@@ -217,7 +242,59 @@ public class AlumnosView extends Div implements BeforeEnterObserver {
 
     private void populateForm(Alumno value) {
         this.alumno = value;
-        binder.readBean(this.alumno);
+        if(value == null) {
+        	nombre.setValue("");
+            apellido.setValue("");
+            correo.setValue("");
+            telefono.setValue("");
+            fechaNacimiento.clear();
+            carrera.setValue("");
+        }else {
+        	nombre.setValue(value.getNombre());
+            apellido.setValue(value.getApellido());
+            correo.setValue(value.getCorreo());
+            telefono.setValue(value.getTelefono());
+			LocalDate fechaNac = LocalDate.parse(
+					value.getFecha_nacimiento(), 
+					DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
+			fechaNacimiento.setValue(fechaNac);
+            carrera.setValue(value.getCarrera());
+        }
 
     }
+
+	@Override
+	public void mostrarAlumnosEnGrid(List<Alumno> items) {
+		Collection<Alumno> itemsCollection = items;
+		this.alumnos = items;
+		grid.setItems(itemsCollection);
+	}
+
+	@Override
+	public void mostrarMensajeError(String mensaje) {
+		Notification notification = new Notification();
+		notification.addThemeVariants(NotificationVariant.LUMO_ERROR);
+
+		Div text = new Div(new Text(mensaje));
+
+		Button closeButton = new Button(new Icon("lumo", "cross"));
+		closeButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
+		closeButton.setAriaLabel("Close");
+		closeButton.addClickListener(event -> {
+		    notification.close();
+		});
+
+		HorizontalLayout layout = new HorizontalLayout(text, closeButton);
+		layout.setAlignItems(Alignment.CENTER);
+
+		notification.add(layout);
+		notification.open();
+	}
+
+	@Override
+	public void mostrarMensajeExito(String mensaje) {
+		Notification notification = Notification.show(mensaje);
+		notification.addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+		notification.open();
+	}
 }
